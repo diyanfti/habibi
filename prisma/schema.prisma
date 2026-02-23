@@ -1,0 +1,45 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Product {
+  id        Int      @id @default(autoincrement())
+  name      String
+  price     Int
+  unit      String   @default("")
+  desc      String   @default("")
+  inStock   Boolean  @default(true)
+  imgBase64 String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Order {
+  id         Int      @id @default(autoincrement())
+  nama       String
+  pengiriman String
+  pembayaran String
+  lokasi     String?
+  catatan    String?
+  total      Int
+  status     String   @default("pending")
+  items      String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  nama      String
+  email     String?
+  telp      String?
+  role      String   @default("pelanggan")
+  password  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
