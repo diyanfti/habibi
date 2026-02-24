@@ -56,6 +56,8 @@ export default function Home() {
       .finally(() => setLoading(false))
   }, [])
 
+  
+
   const showToast = (msg, type) => {
     setToast({ msg, type })
     setTimeout(() => setToast({ msg: '', type: '' }), 2500)
@@ -99,7 +101,6 @@ export default function Home() {
           />
           <h1 className="hero-title">HA BIBI SNACK CORNER</h1>
           <p className="hero-sub">Toko Sembako & Angkringan · Di Jamin Nagihh best 🔥</p>
-          <button className="btn-wa-hero" onClick={goToMenu}>🛒 Pesan Sekarang</button>
         </div>
         <div className="hero-wave">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 80" preserveAspectRatio="none">

@@ -20,17 +20,16 @@ const inp = {
   boxSizing:'border-box', outline:'none',
 }
 
-// ── Safe JSON fetch helper ────────────────────────────────
+// ── Safe JSON fetch helper (hanya untuk non-auth endpoints) ──
 const safeJson = async (res) => {
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(`HTTP ${res.status} on ${res.url}: ${text.slice(0, 150)}`)
-  }
   const text = await res.text()
   try {
-    return JSON.parse(text)
-  } catch {
-    throw new Error(`Response is not valid JSON from ${res.url}: ${text.slice(0, 150)}`)
+    const data = JSON.parse(text)
+    if (!res.ok) throw new Error(`HTTP ${res.status} on ${res.url}: ${JSON.stringify(data)}`)
+    return data
+  } catch (e) {
+    if (!res.ok) throw new Error(`HTTP ${res.status} on ${res.url}: ${text.slice(0, 150)}`)
+    throw new Error(`Response bukan JSON dari ${res.url}: ${text.slice(0, 150)}`)
   }
 }
 
@@ -140,46 +139,35 @@ export default function Admin() {
       setUsers(Array.isArray(u) ? u : [])
     } catch (err) {
       console.error('fetchAll error:', err.message)
-      showToast('Gagal memuat data. Cek konsol untuk detail.', 'error')
+      showToast('Gagal memuat data.', 'error')
     }
   }, [])
 
   useEffect(() => { if (user) fetchAll() }, [user, fetchAll])
 
-  // ── Login / Logout ────────────────────────────────────────
+  // ── Login ─────────────────────────────────────────────────
+  // ✅ Tidak pakai safeJson — login 401 adalah respons valid, bukan error
   const handleLogin = async e => {
     e.preventDefault(); setAuthError('')
     try {
-      const res = await fetch('/api/auth/login', {
+      const res  = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
       })
-      
-      let data
-      try {
-        data = await safeJson(res)
-      } catch (err) {
-        setAuthError('Login gagal: respons server tidak valid.')
-        console.error('Login parse error:', err.message)
-        return
-      }
-
+      const data = await res.json()
       if (!res.ok) { setAuthError(data.error || 'Login gagal'); return }
-
       localStorage.setItem('adminToken', data.token)
       setUser(data.user)
-
-      // Fetch data dengan token baru langsung setelah login
       const headers = { 'Content-Type':'application/json', Authorization:`Bearer ${data.token}` }
       await fetchAll(headers)
-
     } catch (err) {
-      console.error('Login error:', err.message)
+      console.error('Login error:', err)
       setAuthError('Terjadi kesalahan, coba lagi.')
     }
   }
 
+  // ── Logout ────────────────────────────────────────────────
   const handleLogout = () => {
     fetch('/api/auth/logout', { method:'POST' }).catch(() => {})
     localStorage.removeItem('adminToken')
@@ -204,8 +192,7 @@ export default function Admin() {
     const method = editProdId ? 'PUT' : 'POST'
     const url    = editProdId ? `/api/products/${editProdId}` : '/api/products'
     try {
-      const res = await fetch(url, { method, headers:authHeader(), body:JSON.stringify(prodForm) })
-      await safeJson(res)
+      await fetch(url, { method, headers:authHeader(), body:JSON.stringify(prodForm) }).then(safeJson)
       showToast(editProdId ? '✅ Produk diperbarui!' : '✅ Produk ditambahkan!')
       setProdForm(PROD_INIT); setEditProdId(null); setImgPreview(null); setShowProdForm(false)
       fetchAll()
@@ -235,8 +222,10 @@ export default function Admin() {
 
   const toggleStok = async p => {
     try {
-      const res = await fetch(`/api/products/${p.id}`, { method:'PUT', headers:authHeader(), body:JSON.stringify({ ...p, inStock:!p.inStock }) })
-      await safeJson(res)
+      await fetch(`/api/products/${p.id}`, {
+        method:'PUT', headers:authHeader(),
+        body:JSON.stringify({ ...p, inStock:!p.inStock })
+      }).then(safeJson)
       showToast(!p.inStock ? '✅ Stok tersedia' : '❌ Stok habis'); fetchAll()
     } catch (err) {
       console.error('toggleStok error:', err.message)
@@ -247,8 +236,10 @@ export default function Admin() {
   // ── CRUD Pesanan ──────────────────────────────────────────
   const updateOrderStatus = async (id, status) => {
     try {
-      const res = await fetch(`/api/orders/${id}`, { method:'PUT', headers:authHeader(), body:JSON.stringify({ status }) })
-      await safeJson(res)
+      await fetch(`/api/orders/${id}`, {
+        method:'PUT', headers:authHeader(),
+        body:JSON.stringify({ status })
+      }).then(safeJson)
       if (selectedOrder?.id === id) setSelectedOrder(p => ({ ...p, status }))
       showToast(`Status diubah: ${status}`); fetchAll()
     } catch (err) {
@@ -275,8 +266,7 @@ export default function Admin() {
     const method = editUserId ? 'PUT' : 'POST'
     const url    = editUserId ? `/api/users/${editUserId}` : '/api/users'
     try {
-      const res = await fetch(url, { method, headers:authHeader(), body:JSON.stringify(userForm) })
-      await safeJson(res)
+      await fetch(url, { method, headers:authHeader(), body:JSON.stringify(userForm) }).then(safeJson)
       showToast(editUserId ? '✅ Pengguna diperbarui!' : '✅ Pengguna ditambahkan!')
       setUserForm(USER_INIT); setEditUserId(null); setShowUserForm(false); fetchAll()
     } catch (err) {

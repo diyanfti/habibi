@@ -4,6 +4,40 @@ import { useRouter } from 'next/navigation'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 
+// ── Data Asal Usul & Rekomendasi (hardcode berdasarkan nama produk) ────────────
+const PRODUCT_EXTRA = {
+  'Cireng': {
+    origin: 'Cireng atau "Aci digoreng" berasal dari tradisi kuliner Sunda. Dibuat dari adonan tepung tapioka yang dicampur bumbu, dibentuk tipis, lalu digoreng dengan minyak panas hingga mengembang dan renyah.',
+    recommend: 'Cocok banget buat teman nongkrong! Renyahnya bikin nagih, sekali makan pasti nambah terus. Yuk cobain sebelum kehabisan! 🔥',
+  },
+  'Jihu': {
+    origin: 'Jihu dibuat dari campuran tepung terigu dan tepung tapioka yang dibumbui, lalu dibentuk dan digoreng. Perpaduan dua tepung inilah yang menghasilkan tekstur khas yang tidak bisa kamu temukan di jajanan lain.',
+    recommend: 'Mau camilan yang beda dari biasanya? Jihu jawabannya! Murah meriah, nagih, dan bikin hari-harimu makin seru. Jangan sampai kehabisan! 😋',
+  },
+  'Pentol Bakso Kecil': {
+    origin: 'Pentol merupakan variasi bakso khas Jawa Timur. Dibuat dengan menggiling daging sapi halus, dicampur tepung tapioka dan bumbu rempah, lalu dibentuk bulat kecil dan direbus hingga matang sempurna.',
+    recommend: '5 biji dengan harga terjangkau? Ini yang paling worth it! Gurih, kenyal, dan bikin perut happy. Pas banget buat teman ngobrol santai sore hari! ☕',
+  },
+  'Bakso': {
+    origin: 'Bakso terinspirasi dari masakan Tionghoa yang kemudian berkembang menjadi kuliner khas Indonesia. Dibuat dari daging sapi segar yang digiling halus, dicampur tepung tapioka dan bumbu pilihan, dibentuk bulat lalu dimasak dalam kaldu sapi yang kaya rasa.',
+    recommend: 'Hujan-hujanan atau lagi butuh penyemangat? Semangkuk bakso hangat dari HA BIBI SNACK CORNER adalah jawabannya! Kaldu gurihnya bikin ketagihan terus! 🍜',
+  },
+  'Pentol Tahu Daging': {
+    origin: 'Tahu dipotong dan dibelah, lalu diisi dengan adonan daging sapi yang sudah dibumbui dengan bawang putih, merica, dan rempah pilihan. Kemudian dikukus atau digoreng hingga matang merata dan beraroma menggoda.',
+    recommend: 'Suka tahu? Suka daging? Kenapa tidak keduanya sekaligus! Pentol tahu daging kami hadir untuk memanjakan lidahmu dengan cita rasa yang tidak akan kamu lupakan! 🤤',
+  },
+  'Tahu Walek': {
+    origin: 'Tahu walek atau tahu balon adalah kreasi kuliner unik dari Jawa Timur. Tahu putih digoreng dalam minyak panas dengan teknik khusus sehingga kulit luarnya mengembang, menciptakan rongga di dalam yang renyah dan unik.',
+    recommend: 'Penasaran dengan tahu yang bisa mengembang seperti balon? Kriuk di luar, lembut di dalam — murah tapi premium rasanya! Jangan kehabisan ya! 🎈',
+  },
+}
+
+// Fallback jika nama produk tidak ada di mapping
+const getExtra = (name) => PRODUCT_EXTRA[name] || {
+  origin: 'Produk ini dibuat dengan bahan-bahan pilihan berkualitas tinggi oleh HA BIBI SNACK CORNER.',
+  recommend: 'Produk pilihan kami dibuat dengan penuh cinta dan bahan berkualitas. Yuk segera pesan sebelum kehabisan! 🔥',
+}
+
 // ── Slideshow ─────────────────────────────────────────────────────────────────
 function Slideshow({ images }) {
   const [cur, setCur]       = useState(0)
@@ -66,6 +100,7 @@ function ProductModal({ product, index, total, onClose, onPrev, onNext, onGoTo, 
   }, [onClose, onNext, onPrev])
 
   const images = product.imgBase64 ? [product.imgBase64] : []
+  const extra  = getExtra(product.name)
 
   return (
     <div className="prod-modal-overlay active" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
@@ -99,20 +134,40 @@ function ProductModal({ product, index, total, onClose, onPrev, onNext, onGoTo, 
 
         {/* Body */}
         <div className="prod-modal-body">
+          {/* Nama & Harga */}
           <div className="prod-modal-name-row">
             <h3 className="prod-modal-name">{product.name}</h3>
             <span className="prod-modal-price">Rp {Number(product.price).toLocaleString('id-ID')} / {product.unit}</span>
           </div>
+
+          {/* Deskripsi singkat */}
           <p className="prod-modal-desc">{product.desc || 'Produk segar pilihan HA BIBI SNACK CORNER.'}</p>
+
+          {/* Asal Usul / Cara Pembuatan */}
           <div className="prod-modal-origin-box">
-            <p>📖 Informasi Produk</p>
-            <p>{product.desc || 'Produk dibuat dengan bahan-bahan pilihan berkualitas.'}</p>
+            <p style={{ fontWeight: 700, marginBottom: '0.4rem' }}>📖 Asal Usul / Cara Pembuatan</p>
+            <p>{extra.origin}</p>
           </div>
+
+          {/* Rekomendasi */}
           <div className="prod-modal-recommend-box">
-            <p>✨ {product.inStock
-              ? 'Tersedia sekarang! Yuk segera pesan sebelum kehabisan 🔥'
-              : 'Maaf, produk ini sedang habis. Cek kembali nanti ya!'
-            }</p>
+            <p>✨ {extra.recommend}</p>
+          </div>
+
+          {/* Status stok */}
+          <div style={{
+            marginTop: '0.6rem',
+            padding: '8px 12px',
+            borderRadius: 10,
+            fontSize: 13,
+            fontWeight: 600,
+            background: product.inStock ? 'rgba(74,222,128,0.1)' : 'rgba(248,113,113,0.1)',
+            color: product.inStock ? '#4ade80' : '#f87171',
+            border: `1px solid ${product.inStock ? 'rgba(74,222,128,0.3)' : 'rgba(248,113,113,0.3)'}`,
+          }}>
+            {product.inStock
+              ? '✅ Tersedia sekarang! Yuk segera pesan sebelum kehabisan 🔥'
+              : '❌ Maaf, produk ini sedang habis. Cek kembali nanti ya!'}
           </div>
         </div>
 
@@ -253,7 +308,6 @@ export default function Profile() {
                       Rp {Number(p.price).toLocaleString('id-ID')}
                       <span className="gallery-card-unit"> / {p.unit}</span>
                     </div>
-                    <div className="gallery-card-tap">Tap untuk detail →</div>
                   </div>
                 </div>
               ))}
