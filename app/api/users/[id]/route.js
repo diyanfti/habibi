@@ -1,68 +1,130 @@
-import { NextResponse }                     from 'next/server'
-import { prisma }                           from '@/lib/prisma'
-import { verifyToken, getTokenFromRequest } from '@/lib/auth'
-import bcrypt                               from 'bcryptjs'
+// app/api/users/[id]/route.js
+import { NextResponse } from 'next/server'
+import fs from 'fs'
+import path from 'path'
+import bcrypt from 'bcryptjs'
 
-async function requireAdmin(req) {
-  const token = getTokenFromRequest(req)
-  const user  = await verifyToken(token)
-  return user?.role === 'admin' ? user : null
-}
+const DB_PATH = path.join(process.cwd(), 'data', 'db.json')
 
-export async function GET(req, { params }) {
-  if (!await requireAdmin(req))
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+function readDB() {
   try {
-    const { id } = await params
-    const user = await prisma.user.findUnique({
-      where: { id: Number(id) },
-      select: { id:true, nama:true, email:true, telp:true, role:true, createdAt:true }
-    })
-    if (!user)
-      return NextResponse.json({ error: 'Pengguna tidak ditemukan' }, { status: 404 })
-    return NextResponse.json(user)
-  } catch (err) {
-    console.error('GET user error:', err)
-    return NextResponse.json({ error: 'Server error' }, { status: 500 })
+    if (!fs.existsSync(DB_PATH)) {
+      const dir = path.dirname(DB_PATH)
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true })
+      }
+      const initialData = { products: [], orders: [], users: [] }
+      fs.writeFileSync(DB_PATH, JSON.stringify(initialData, null, 2))
+      return initialData
+    }
+    const data = fs.readFileSync(DB_PATH, 'utf-8')
+    return JSON.parse(data)
+  } catch (error) {
+    console.error('Error reading DB:', error)
+    return { products: [], orders: [], users: [] }
   }
 }
 
-export async function PUT(req, { params }) {
-  if (!await requireAdmin(req))
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+function writeDB(data) {
+  try {
+    const dir = path.dirname(DB_PATH)
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true })
+    }
+    fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2))
+    return true
+  } catch (error) {
+    console.error('Error writing DB:', error)
+    return false
+  }
+}
+
+// PUT - Update pengguna
+export async function PUT(request, { params }) {
   try {
     const { id } = await params
-    const body   = await req.json()
-    const data   = {
-      ...(body.nama && { nama: body.nama }),
-      ...(body.email !== undefined && { email: body.email || null }),
-      ...(body.telp !== undefined && { telp: body.telp || null }),
-      ...(body.role && { role: body.role }),
+    const body = await request.json()
+    
+    const db = readDB()
+    const index = db.users.findIndex(u => u.id === Number(id))
+    
+    if (index === -1) {
+      return NextResponse.json(
+        { error: 'Pengguna tidak ditemukan' },
+        { status: 404 }
+      )
     }
+
+    // Cek email duplikat (kecuali email sendiri)
+    if (body.email && body.email !== db.users[index].email) {
+      if (db.users.some(u => u.email === body.email)) {
+        return NextResponse.json(
+          { error: 'Email sudah digunakan' },
+          { status: 400 }
+        )
+      }
+    }
+
+    // Update data
+    const updatedUser = {
+      ...db.users[index],
+      nama: body.nama || db.users[index].nama,
+      role: body.role || db.users[index].role,
+      email: body.email !== undefined ? body.email : db.users[index].email,
+      telp: body.telp !== undefined ? body.telp : db.users[index].telp,
+      updatedAt: new Date().toISOString()
+    }
+
+    // Update password jika diisi
     if (body.password) {
-      data.password = await bcrypt.hash(body.password, 10)
+      updatedUser.password = await bcrypt.hash(body.password, 10)
     }
-    const user = await prisma.user.update({
-      where: { id: Number(id) },
-      data
-    })
-    const { password: _, ...safe } = user
-    return NextResponse.json(safe)
-  } catch (err) {
-    console.error('PUT user error:', err)
-    return NextResponse.json({ error: 'Gagal memperbarui pengguna' }, { status: 500 })
+
+    db.users[index] = updatedUser
+    
+    if (!writeDB(db)) {
+      throw new Error('Gagal menyimpan perubahan')
+    }
+
+    // Jangan kirim password ke client
+    const { password, ...userWithoutPassword } = updatedUser
+    return NextResponse.json(userWithoutPassword)
+  } catch (error) {
+    console.error('PUT /api/users/[id] error:', error)
+    return NextResponse.json(
+      { error: 'Gagal memperbarui pengguna' },
+      { status: 500 }
+    )
   }
 }
 
-export async function DELETE(req, { params }) {
-  if (!await requireAdmin(req))
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+// DELETE - Hapus pengguna
+export async function DELETE(request, { params }) {
   try {
     const { id } = await params
-    await prisma.user.delete({ where: { id: Number(id) } })
-    return NextResponse.json({ ok: true })
-  } catch (err) {
-    console.error('DELETE user error:', err)
-    return NextResponse.json({ error: 'Gagal menghapus pengguna' }, { status: 500 })
+    
+    const db = readDB()
+    const index = db.users.findIndex(u => u.id === Number(id))
+    
+    if (index === -1) {
+      return NextResponse.json(
+        { error: 'Pengguna tidak ditemukan' },
+        { status: 404 }
+      )
+    }
+
+    db.users.splice(index, 1)
+    
+    if (!writeDB(db)) {
+      throw new Error('Gagal menghapus pengguna')
+    }
+
+    return NextResponse.json({ message: 'Pengguna berhasil dihapus' })
+  } catch (error) {
+    console.error('DELETE /api/users/[id] error:', error)
+    return NextResponse.json(
+      { error: 'Gagal menghapus pengguna' },
+      { status: 500 }
+    )
   }
 }

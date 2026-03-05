@@ -1,55 +1,112 @@
-import { NextResponse }                     from 'next/server'
-import { prisma }                           from '@/lib/prisma'
-import { verifyToken, getTokenFromRequest } from '@/lib/auth'
+// app/api/products/[id]/route.js
+import { NextResponse } from 'next/server'
+import fs from 'fs'
+import path from 'path'
 
-async function requireAdmin(req) {
-  const token = getTokenFromRequest(req)
-  const user  = await verifyToken(token)
-  return user?.role === 'admin' ? user : null
-}
+const DB_PATH = path.join(process.cwd(), 'data', 'db.json')
 
-export async function GET(_, { params }) {
+function readDB() {
   try {
-    const product = await prisma.product.findUnique({
-      where: { id: Number(params.id) }
-    })
-    if (!product)
-      return NextResponse.json({ error: 'Produk tidak ditemukan' }, { status: 404 })
-    return NextResponse.json(product)
-  } catch {
-    return NextResponse.json({ error: 'Server error' }, { status: 500 })
-  }
-}
-
-export async function PUT(req, { params }) {
-  if (!await requireAdmin(req))
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  try {
-    const body    = await req.json()
-    const product = await prisma.product.update({
-      where: { id: Number(params.id) },
-      data: {
-        name:      body.name?.trim(),
-        price:     Number(body.price),
-        unit:      body.unit?.trim()  || '',
-        desc:      body.desc?.trim()  || '',
-        inStock:   body.inStock       ?? true,
-        ...(body.imgBase64 !== undefined && { imgBase64: body.imgBase64 }),
+    if (!fs.existsSync(DB_PATH)) {
+      const dir = path.dirname(DB_PATH)
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true })
       }
-    })
-    return NextResponse.json(product)
-  } catch {
-    return NextResponse.json({ error: 'Gagal memperbarui produk' }, { status: 500 })
+      const initialData = { products: [], orders: [], users: [] }
+      fs.writeFileSync(DB_PATH, JSON.stringify(initialData, null, 2))
+      return initialData
+    }
+    const data = fs.readFileSync(DB_PATH, 'utf-8')
+    return JSON.parse(data)
+  } catch (error) {
+    console.error('Error reading DB:', error)
+    return { products: [], orders: [], users: [] }
   }
 }
 
-export async function DELETE(req, { params }) {
-  if (!await requireAdmin(req))
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+function writeDB(data) {
   try {
-    await prisma.product.delete({ where: { id: Number(params.id) } })
-    return NextResponse.json({ ok: true })
-  } catch {
-    return NextResponse.json({ error: 'Gagal menghapus produk' }, { status: 500 })
+    const dir = path.dirname(DB_PATH)
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true })
+    }
+    fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2))
+    return true
+  } catch (error) {
+    console.error('Error writing DB:', error)
+    return false
+  }
+}
+
+// PUT - Update produk
+export async function PUT(request, { params }) {
+  try {
+    const { id } = await params
+    const body = await request.json()
+    
+    const db = readDB()
+    const index = db.products.findIndex(p => p.id === Number(id))
+    
+    if (index === -1) {
+      return NextResponse.json(
+        { error: 'Produk tidak ditemukan' },
+        { status: 404 }
+      )
+    }
+
+    // Update produk
+    db.products[index] = {
+      ...db.products[index],
+      name: body.name || db.products[index].name,
+      price: body.price !== undefined ? Number(body.price) : db.products[index].price,
+      unit: body.unit !== undefined ? body.unit : db.products[index].unit,
+      desc: body.desc !== undefined ? body.desc : db.products[index].desc,
+      inStock: body.inStock !== undefined ? body.inStock : db.products[index].inStock,
+      imgBase64: body.imgBase64 !== undefined ? body.imgBase64 : db.products[index].imgBase64,
+      updatedAt: new Date().toISOString()
+    }
+
+    if (!writeDB(db)) {
+      throw new Error('Gagal menyimpan perubahan')
+    }
+
+    return NextResponse.json(db.products[index])
+  } catch (error) {
+    console.error('PUT /api/products/[id] error:', error)
+    return NextResponse.json(
+      { error: 'Gagal memperbarui produk' },
+      { status: 500 }
+    )
+  }
+}
+
+// DELETE - Hapus produk
+export async function DELETE(request, { params }) {
+  try {
+    const { id } = await params
+    
+    const db = readDB()
+    const index = db.products.findIndex(p => p.id === Number(id))
+    
+    if (index === -1) {
+      return NextResponse.json(
+        { error: 'Produk tidak ditemukan' },
+        { status: 404 }
+      )
+    }
+
+    db.products.splice(index, 1)
+    
+    if (!writeDB(db)) {
+      throw new Error('Gagal menghapus produk')
+    }
+
+    return NextResponse.json({ message: 'Produk berhasil dihapus' })
+  } catch (error) {
+    console.error('DELETE /api/products/[id] error:', error)
+    return NextResponse.json(
+      { error: 'Gagal menghapus produk' },
+      { status: 500 }
+    )
   }
 }

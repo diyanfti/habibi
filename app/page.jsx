@@ -14,20 +14,27 @@ function OrderNotif({ show, onClose }) {
   return (
     <div style={{
       position: 'fixed', top: 80, left: '50%', transform: 'translateX(-50%)',
-      background: 'linear-gradient(135deg,rgba(124,58,237,0.97),rgba(37,99,235,0.97))',
-      backdropFilter: 'blur(12px)', border: '1px solid rgba(167,139,250,0.4)',
+      background: 'linear-gradient(135deg,rgba(74,222,128,0.95),rgba(34,197,94,0.95))',
+      backdropFilter: 'blur(12px)', border: '1px solid rgba(74,222,128,0.5)',
       borderRadius: 14, padding: '14px 18px', maxWidth: 500, width: '90%',
-      boxShadow: '0 10px 40px rgba(124,58,237,0.35)', zIndex: 950,
+      boxShadow: '0 10px 40px rgba(74,222,128,0.35)', zIndex: 950,
       display: 'flex', alignItems: 'center', gap: 12,
+      animation: 'slideDown 0.4s ease-out'
     }}>
-      <span style={{ fontSize: '1.4rem', flexShrink: 0 }}>🛍️</span>
+      <span style={{ fontSize: '1.4rem', flexShrink: 0 }}>✅</span>
       <span style={{ color: '#fff', fontSize: 13, fontWeight: 500, lineHeight: 1.5, flex: 1 }}>
-        Silakan pilih menu, lalu tambahkan ke keranjang untuk melakukan pemesanan!
+        Selamat datang! 🎉 Pilih menu favorit Anda dan tambahkan ke keranjang. Kami siap melayani! 🛒
       </span>
       <button
         onClick={onClose}
         style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', fontSize: '1.2rem', width: 28, height: 28, borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
       >×</button>
+      <style>{`
+        @keyframes slideDown {
+          from { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+          to { opacity: 1; transform: translateX(-50%) translateY(0); }
+        }
+      `}</style>
     </div>
   )
 }
@@ -56,17 +63,23 @@ export default function Home() {
       .finally(() => setLoading(false))
   }, [])
 
-  
+  // ── Auto-scroll ke menu saat page load ─────────────────────────────────────
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      menuRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      // Tampilkan notifikasi jika datang dari halaman lain
+      if (typeof window !== 'undefined' && window.location.hash === '' && !sessionStorage.getItem('menuNotifShown')) {
+        setShowNotif(true)
+        sessionStorage.setItem('menuNotifShown', 'true')
+        setTimeout(() => setShowNotif(false), 5000)
+      }
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [loading])
 
   const showToast = (msg, type) => {
     setToast({ msg, type })
     setTimeout(() => setToast({ msg: '', type: '' }), 2500)
-  }
-
-  const goToMenu = () => {
-    menuRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    setShowNotif(true)
-    setTimeout(() => setShowNotif(false), 5000)
   }
 
   const changeQty = (id, delta) =>

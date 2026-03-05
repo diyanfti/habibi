@@ -200,7 +200,12 @@ export default function Profile() {
       .catch(console.error)
   }, [])
 
-  const goToMenu     = () => router.push('/')
+  // ✅ Arahkan ke halaman home (/) dan tampilkan notifikasi
+  const goToMenu = () => {
+    sessionStorage.removeItem('menuNotifShown') // Reset notif agar tampil lagi
+    router.push('/')
+  }
+  
   const closeProduct = () => setActiveIdx(null)
   const prevProduct  = () => setActiveIdx(p => ((p - 1) + products.length) % products.length)
   const nextProduct  = () => setActiveIdx(p => (p + 1) % products.length)

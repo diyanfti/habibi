@@ -27,6 +27,7 @@ export default function CartPanel() {
   const [delivery, setDelivery]   = useState('ambil')
   const [payment, setPayment]     = useState('COD')
   const [nama, setNama]           = useState('')
+  const [email, setEmail]         = useState('')
   const [catatan, setCatatan]     = useState('')
   const [mapsLink, setMapsLink]   = useState('')
   const [locStatus, setLocStatus] = useState('')
@@ -120,6 +121,7 @@ export default function CartPanel() {
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({
           nama,
+          email:      email || null,
           pengiriman: delivery,
           pembayaran: payment,
           lokasi:     mapsLink || null,
@@ -269,6 +271,17 @@ export default function CartPanel() {
             <div className="form-group">
               <label>Nama Pemesan *</label>
               <input value={nama} onChange={e => setNama(e.target.value)} placeholder="Masukkan nama kamu" />
+            </div>
+
+            {/* Email */}
+            <div className="form-group">
+              <label>📧 Email</label>
+              <input 
+                type="email"
+                value={email} 
+                onChange={e => setEmail(e.target.value)} 
+                placeholder="email@gmail.com" 
+              />
             </div>
 
             {/* Pembayaran */}

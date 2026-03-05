@@ -20,7 +20,7 @@ const inp = {
   boxSizing:'border-box', outline:'none',
 }
 
-// ── Safe JSON fetch helper (hanya untuk non-auth endpoints) ──
+// ── Safe JSON fetch helper ──
 const safeJson = async (res) => {
   const text = await res.text()
   try {
@@ -131,8 +131,8 @@ export default function Admin() {
     try {
       const [p, o, u] = await Promise.all([
         fetch('/api/products').then(safeJson),
-        fetch('/api/orders',  { headers }).then(safeJson),
-        fetch('/api/users',   { headers }).then(safeJson),
+        fetch('/api/orders', { headers }).then(safeJson),
+        fetch('/api/users', { headers }).then(safeJson),
       ])
       setProducts(Array.isArray(p) ? p : [])
       setOrders(Array.isArray(o) ? o : [])
@@ -146,7 +146,6 @@ export default function Admin() {
   useEffect(() => { if (user) fetchAll() }, [user, fetchAll])
 
   // ── Login ─────────────────────────────────────────────────
-  // ✅ Tidak pakai safeJson — login 401 adalah respons valid, bukan error
   const handleLogin = async e => {
     e.preventDefault(); setAuthError('')
     try {
@@ -233,6 +232,31 @@ export default function Admin() {
     }
   }
 
+  // ── Kirim Email Notifikasi ───────────────────────────────────────
+  const sendEmailNotification = async (orderId, customerEmail) => {
+    if (!customerEmail) {
+      showToast('❌ Email pelanggan tidak tersedia.', 'error')
+      return
+    }
+    try {
+      const res = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: customerEmail,
+          subject: '✅ Pesanan Anda Selesai!',
+          message: `Halo! Pesanan Anda di HA BIBI SNACK CORNER sudah selesai. Silakan ambil pesanan Anda! 🎉`
+        })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Gagal kirim email')
+      showToast('✅ Email notifikasi terkirim!', 'success')
+    } catch (err) {
+      console.error('sendEmailNotification error:', err.message)
+      showToast('❌ Gagal kirim email.', 'error')
+    }
+  }
+
   // ── CRUD Pesanan ──────────────────────────────────────────
   const updateOrderStatus = async (id, status) => {
     try {
@@ -241,7 +265,17 @@ export default function Admin() {
         body:JSON.stringify({ status })
       }).then(safeJson)
       if (selectedOrder?.id === id) setSelectedOrder(p => ({ ...p, status }))
-      showToast(`Status diubah: ${status}`); fetchAll()
+      showToast(`Status diubah: ${status}`); 
+      
+      // Auto-kirim email saat status = "selesai"
+      if (status === 'selesai') {
+        const order = orders.find(o => o.id === id)
+        if (order?.email) {
+          await sendEmailNotification(id, order.email)
+        }
+      }
+      
+      fetchAll()
     } catch (err) {
       console.error('updateOrderStatus error:', err.message)
       showToast('Gagal mengubah status.','error')
@@ -379,6 +413,16 @@ export default function Admin() {
                     return <button key={s} onClick={()=>updateOrderStatus(selectedOrder.id,s)} style={{ padding:'7px 14px', borderRadius:8, border:'none', background:sc.bg, color:sc.color, fontWeight:700, fontSize:12, cursor:'pointer', fontFamily:'Poppins,sans-serif' }}>{sc.label}</button>
                   })}
                 </div>
+                {selectedOrder.email && (
+                  <div style={{ marginTop:12, paddingTop:12, borderTop:'1px solid var(--border)' }}>
+                    <button 
+                      onClick={() => sendEmailNotification(selectedOrder.id, selectedOrder.email)}
+                      style={{ padding:'7px 14px', borderRadius:8, border:'none', background:'rgba(74,222,128,0.15)', color:'#4ade80', fontWeight:700, fontSize:12, cursor:'pointer', fontFamily:'Poppins,sans-serif' }}>
+                      📧 Kirim Email Notifikasi
+                    </button>
+                    <p style={{ fontSize:11, color:'var(--text-muted)', marginTop:6 }}>Email: {selectedOrder.email}</p>
+                  </div>
+                )}
               </div>
             </div>
           </div>
