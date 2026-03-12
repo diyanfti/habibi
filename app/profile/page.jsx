@@ -32,7 +32,6 @@ const PRODUCT_EXTRA = {
   },
 }
 
-// Fallback jika nama produk tidak ada di mapping
 const getExtra = (name) => PRODUCT_EXTRA[name] || {
   origin: 'Produk ini dibuat dengan bahan-bahan pilihan berkualitas tinggi oleh HA BIBI SNACK CORNER.',
   recommend: 'Produk pilihan kami dibuat dengan penuh cinta dan bahan berkualitas. Yuk segera pesan sebelum kehabisan! 🔥',
@@ -54,7 +53,7 @@ function Slideshow({ images }) {
     setProg(0)
     const start = Date.now()
     progRef.current = setInterval(() =>
-      setProg(Math.min(((Date.now() - start) / DURATION) * 100, 100)), 50)
+      setProg(Math.min(((Date.now() - start) / DURATION) * 100, 50)), 50)
     timerRef.current = setTimeout(() => setCur(p => (p + 1) % images.length), DURATION)
     return () => { clearTimeout(timerRef.current); clearInterval(progRef.current) }
   }, [cur, paused, isSolo, images.length])
@@ -108,11 +107,19 @@ function ProductModal({ product, index, total, onClose, onPrev, onNext, onGoTo, 
 
         <button className="prod-modal-close-btn" onClick={onClose}>×</button>
 
-        {/* Slideshow atau placeholder */}
+        {/* Slideshow atau placeholder - CENTER IMAGE */}
         {images.length > 0
           ? <Slideshow key={product.id} images={images} />
           : (
-            <div className="prod-slideshow" style={{ background: 'var(--bg-input)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '4rem', borderRadius: '22px 22px 0 0' }}>
+            <div className="prod-slideshow" style={{ 
+              background: 'var(--bg-input)', 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              fontSize: '4rem', 
+              borderRadius: '22px 22px 0 0',
+              aspectRatio: '1 / 1'
+            }}>
               🍡
             </div>
           )
@@ -200,9 +207,8 @@ export default function Profile() {
       .catch(console.error)
   }, [])
 
-  // ✅ Arahkan ke halaman home (/) dan tampilkan notifikasi
   const goToMenu = () => {
-    sessionStorage.removeItem('menuNotifShown') // Reset notif agar tampil lagi
+    sessionStorage.removeItem('menuNotifShown')
     router.push('/')
   }
   
@@ -245,20 +251,50 @@ export default function Profile() {
 
       <div style={{ maxWidth: 1000, margin: '0 auto', padding: '2rem 1.5rem 4rem' }}>
 
-        {/* Tentang Kami */}
+        {/* Tentang Kami - IMPROVED RESPONSIVE */}
         <section style={{ marginBottom: '3rem' }}>
           <SectionLabel icon="✨" title="Tentang Kami" />
-          <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 18, padding: '1.8rem' }}>
-            <div style={{ fontSize: '3rem', flexShrink: 0 }}>🏪</div>
-            <div>
-              <h2 style={{ fontSize: '1.3rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.8rem' }}>Selamat Datang di HA BIBI SNACK CORNER!</h2>
-              <p style={{ fontSize: '0.88rem', color: 'var(--text-desc)', lineHeight: 1.75, marginBottom: '0.6rem' }}>
+          <div 
+            className="about-container"
+            style={{ 
+              background: 'var(--bg-card)', 
+              border: '1px solid var(--border)', 
+              borderRadius: 18, 
+              padding: '1.8rem'
+            }}
+          >
+            <div className="about-icon" style={{ fontSize: '3rem' }}>🏪</div>
+            <div className="about-content">
+              <h2 style={{ 
+                fontSize: '1.3rem', 
+                fontWeight: 700, 
+                color: 'var(--text-main)', 
+                marginBottom: '0.8rem'
+              }}>Selamat Datang di HA BIBI SNACK CORNER!</h2>
+              
+              <p style={{ 
+                fontSize: '0.88rem', 
+                color: 'var(--text-desc)', 
+                lineHeight: 1.75, 
+                marginBottom: '0.8rem'
+              }}>
                 HA BIBI SNACK CORNER adalah toko sembako dan angkringan yang dikelola oleh <strong>Ibu Siti</strong>, hadir untuk memenuhi kebutuhan sehari-hari masyarakat sekitar dengan harga terjangkau dan produk berkualitas.
               </p>
-              <p style={{ fontSize: '0.88rem', color: 'var(--text-desc)', lineHeight: 1.75, marginBottom: '0.6rem' }}>
+              
+              <p style={{ 
+                fontSize: '0.88rem', 
+                color: 'var(--text-desc)', 
+                lineHeight: 1.75, 
+                marginBottom: '0.8rem'
+              }}>
                 Kami menyediakan berbagai jajanan angkringan seperti cireng, jihu, pentol, bakso, tahu walek, dan masih banyak lagi — semua dibuat dengan cita rasa yang nagih! 😋
               </p>
-              <p style={{ fontSize: '0.88rem', color: 'var(--text-desc)', lineHeight: 1.75 }}>
+              
+              <p style={{ 
+                fontSize: '0.88rem', 
+                color: 'var(--text-desc)', 
+                lineHeight: 1.75
+              }}>
                 Dengan semangat melayani 24 jam, kami siap memenuhi pesananmu kapan saja. <em>Di Jamin Nagihh best!</em>
               </p>
             </div>
@@ -345,7 +381,7 @@ export default function Profile() {
               referrerPolicy="no-referrer-when-downgrade"
             />
             <a
-              href="https://maps.google.com/?q=Sumber+Pinang+Mlandingan+Situbondo"
+              href="https://maps.app.goo.gl/u4p1VZeiU9WMd2867"
               target="_blank" rel="noreferrer"
               style={{ display: 'block', textAlign: 'center', padding: 13, background: 'linear-gradient(135deg,var(--grad-a),var(--grad-b))', color: '#fff', textDecoration: 'none', fontWeight: 700, fontSize: 14 }}
             >
