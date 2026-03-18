@@ -463,7 +463,7 @@ export default function Admin() {
       const updateRes = await fetch(`/api/orders/${orderId}`, {
         method: 'PUT',
         headers: authHeader(),
-        body: JSON.stringify({ ...order, status: newStatus })
+        body: JSON.stringify({ status: newStatus })
       })
 
       if (!updateRes.ok) {
