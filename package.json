@@ -15,7 +15,7 @@
     "jose": "^6.2.0",
     "jsonwebtoken": "^9.0.3",
     "next": "16.1.6",
-    "nodemailer": "^8.0.1",
+    "nodemailer": "^8.0.2",
     "prisma": "^5.22.0",
     "react": "19.2.3",
     "react-dom": "19.2.3"

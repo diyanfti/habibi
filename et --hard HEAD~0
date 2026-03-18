@@ -1,0 +1,9 @@
+[33m2e2ebfb[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m tambah fitur sembako
+[33m930cc61[m Update order details: change customer information and payment method
+[33me900a12[m Add new order entry with details for delivery and payment method
+[33mf9789c4[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m install jose untuk auth JWT
+[33ma444ed6[m Add postinstall script for Prisma generate
+[33mae4acf3[m tambah notifikasi email untuk pelanggan saat pesanan sudah selesai
+[33m9dd423c[m Refactor authentication and order management APIs; enhance error handling and add product recommendations
+[33mf66cf9c[m baru
+[33m90a5eda[m Initial commit from Create Next App

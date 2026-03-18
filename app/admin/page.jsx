@@ -103,6 +103,7 @@ export default function Admin() {
 
   // ─── ORDER ───
   const [selectedOrder, setSelectedOrder] = useState(null)
+  const [orderStatusFilter, setOrderStatusFilter] = useState('all')
 
   // ─── HELPERS ───
   const getToken = () => {
@@ -410,12 +411,108 @@ export default function Admin() {
     }
   }
 
+  // ═════════════════════════════════════════════════════════════════
+  // ORDER HANDLERS - UPDATE STATUS & SEND EMAIL NOTIFICATION
+  // ═════════════════════════════════════════════════════════════════
+
+  const updateOrderStatus = async (orderId, newStatus) => {
+    setLoading(true)
+    try {
+      const order = orders.find(o => o.id === orderId)
+      if (!order) throw new Error('Pesanan tidak ditemukan')
+
+      console.log(`📤 Mengubah status pesanan #${orderId} ke "${newStatus}"...`)
+
+      // Step 1: Update order status di database
+      const updateRes = await fetch(`/api/orders/${orderId}`, {
+        method: 'PUT',
+        headers: authHeader(),
+        body: JSON.stringify({ ...order, status: newStatus })
+      })
+
+      if (!updateRes.ok) {
+        const errorData = await updateRes.json()
+        throw new Error(errorData.error || 'Gagal mengubah status pesanan')
+      }
+
+      console.log(`✅ Status pesanan berhasil diubah ke "${newStatus}"`)
+
+      // Step 2: Jika status "selesai", kirim email notifikasi ke pelanggan
+      if (newStatus === 'selesai') {
+        console.log(`📧 Mengirim notifikasi email ke ${order.email}...`)
+        await sendOrderReadyEmail(orderId, order)
+      }
+
+      showToast(`✅ Status pesanan diubah menjadi ${getStatus(newStatus).label}`)
+      
+      // Refresh data
+      await fetchAll()
+    } catch (err) {
+      console.error('❌ updateOrderStatus error:', err)
+      showToast('Gagal mengubah status pesanan.', 'error')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const sendOrderReadyEmail = async (orderId, order) => {
+    try {
+      // Validasi data pelanggan
+      if (!order.email) {
+        showToast('Email pelanggan tidak tersedia. Email tidak dikirim.', 'warning')
+        return
+      }
+
+      const customerName = order.nama || 'Pelanggan'
+
+      console.log(`📧 Preparing email to ${order.email}...`)
+
+      // Kirim request ke API send-notification
+      const notificationRes = await fetch('/api/orders/send-notification', {
+        method: 'POST',
+        headers: authHeader(),
+        body: JSON.stringify({
+          orderId: orderId,
+          customerEmail: order.email,
+          customerName: customerName,
+          orderTotal: order.total || 0
+        })
+      })
+
+      const notificationData = await notificationRes.json()
+
+      if (!notificationRes.ok) {
+        console.error('❌ Email send error:', notificationData.error)
+        showToast(
+          'Pesanan diperbarui, tapi gagal mengirim email notifikasi.',
+          'warning'
+        )
+        return
+      }
+
+      console.log(`✅ Email berhasil dikirim!`)
+      console.log(`📨 Message ID: ${notificationData.messageId}`)
+      showToast('✅ Email notifikasi berhasil dikirim ke pelanggan!', 'success')
+    } catch (err) {
+      console.error('❌ sendOrderReadyEmail error:', err)
+      showToast(
+        'Pesanan diperbarui, tapi gagal mengirim email notifikasi.',
+        'warning'
+      )
+    }
+  }
+
   // ─── STATS ───
   const totalRevenue = orders.reduce((s, o) => s + (o.total||0), 0)
   const pendingCount = orders.filter(o => !o.status || o.status==='pending').length
   const doneCount = orders.filter(o => o.status==='selesai').length
   const prodHabis = products.filter(p => !p.inStock).length
   const sembakoHabis = sembakoProducts.filter(p => !p.inStock).length
+
+  // Filter orders berdasarkan status
+  const filteredOrders = orderStatusFilter === 'all' 
+    ? orders 
+    : orders.filter(o => (o.status || 'pending') === orderStatusFilter)
 
   // ═════════════════════════════════════════════════════════════════
   // RENDER LOADING
@@ -689,16 +786,90 @@ export default function Admin() {
           </div>
         )}
 
-        {/* PESANAN TAB */}
+        {/* PESANAN TAB - DENGAN EMAIL NOTIFICATION */}
         {tab==='pesanan' && (
           <div>
-            <SectionLabel icon="📦" title="Manajemen Pesanan" />
-            {orders.length===0
-              ? <div style={{ background:'var(--bg-card)', border:'1px solid var(--border)', borderRadius:16, padding:'3rem', textAlign:'center', color:'var(--text-muted)' }}>📭 Belum ada pesanan.</div>
-              : orders.map(o=>(
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1.5rem', flexWrap:'wrap', gap:8 }}>
+              <SectionLabel icon="📦" title="Manajemen Pesanan" />
+              <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                {['all', 'pending', 'proses', 'selesai', 'batal'].map(st => (
+                  <button 
+                    key={st}
+                    onClick={() => setOrderStatusFilter(st)}
+                    style={{ 
+                      padding:'6px 12px', 
+                      background: orderStatusFilter === st ? 'linear-gradient(135deg,#D4AF37,#B8956A)' : 'var(--bg-card)',
+                      color: orderStatusFilter === st ? '#3D2817' : 'var(--text-sub)',
+                      border: orderStatusFilter === st ? 'none' : '1px solid var(--border)',
+                      borderRadius: 8, 
+                      fontWeight: 700, 
+                      fontSize: 11, 
+                      cursor: 'pointer',
+                      fontFamily: 'Poppins,sans-serif'
+                    }}
+                  >
+                    {st === 'all' ? '📋 Semua' : st === 'pending' ? '⏳ Pending' : st === 'proses' ? '🔄 Proses' : st === 'selesai' ? '✅ Selesai' : '❌ Batal'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {filteredOrders.length===0
+              ? <div style={{ background:'var(--bg-card)', border:'1px solid var(--border)', borderRadius:16, padding:'3rem', textAlign:'center', color:'var(--text-muted)' }}>
+                  📭 Belum ada pesanan dengan status ini.
+                </div>
+              : filteredOrders.map(o=>(
                   <div key={o.id} style={{ background:'var(--bg-card)', border:'1px solid var(--border)', borderRadius:16, padding:'1.2rem 1.4rem', marginBottom:'1rem' }}>
-                    <div style={{ fontSize:14, fontWeight:700, color:'var(--text-main)' }}>{o.nama||'Anonim'}</div>
-                    <div style={{ fontSize:13, color:'var(--text-muted)', marginBottom:10, marginTop:5 }}>💰 Rp {(o.total||0).toLocaleString('id-ID')}</div>
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexWrap:'wrap', gap:'1rem', marginBottom:'1rem' }}>
+                      <div>
+                        <div style={{ fontSize:14, fontWeight:700, color:'var(--text-main)' }}>{o.nama||'Anonim'}</div>
+                        <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:4 }}>📧 {o.email||'-'}</div>
+                        <div style={{ fontSize:12, color:'var(--text-muted)' }}>📱 {o.telp||'-'}</div>
+                      </div>
+                      <div style={{ textAlign:'right' }}>
+                        <div style={{ fontSize:14, fontWeight:800, color:'#D4AF37' }}>Rp {(o.total||0).toLocaleString('id-ID')}</div>
+                        <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:4 }}>Order ID: {o.id}</div>
+                      </div>
+                    </div>
+
+                    {/* Status & Items */}
+                    <div style={{ background:'var(--bg-input)', borderRadius:12, padding:'0.8rem', marginBottom:'1rem' }}>
+                      <div style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', marginBottom:6 }}>ITEM PESANAN</div>
+                      {o.items?.map((item, idx) => (
+                        <div key={idx} style={{ fontSize:12, color:'var(--text-main)', marginBottom:4 }}>
+                          • {item.name} x{item.qty} = Rp {(item.subtotal||0).toLocaleString('id-ID')}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Status Update Buttons */}
+                    <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                      {['pending', 'proses', 'selesai', 'batal'].map(st => {
+                        const config = statusConfig[st]
+                        const isActive = (o.status || 'pending') === st
+                        return (
+                          <button
+                            key={st}
+                            onClick={() => updateOrderStatus(o.id, st)}
+                            disabled={loading || isActive}
+                            style={{
+                              padding: '6px 12px',
+                              background: isActive ? config.bg : 'var(--bg-input)',
+                              border: `1px solid ${config.color}40`,
+                              color: config.color,
+                              borderRadius: 8,
+                              fontSize: 11,
+                              fontWeight: 700,
+                              cursor: loading || isActive ? 'not-allowed' : 'pointer',
+                              opacity: loading || isActive ? 0.6 : 1,
+                              fontFamily: 'Poppins,sans-serif'
+                            }}
+                          >
+                            {config.label}
+                          </button>
+                        )
+                      })}
+                    </div>
                   </div>
                 ))
             }
