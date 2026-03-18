@@ -455,6 +455,10 @@ export default function Admin() {
   const updateOrderStatus = async (orderId, newStatus) => {
     setLoading(true)
     try {
+      const token = getToken()
+      console.log('🔐 Token:', token ? '✅ Ada' : '❌ Tidak ada')
+      console.log('📤 Headers:', authHeader())
+      
       const order = orders.find(o => o.id === orderId)
       if (!order) throw new Error('Pesanan tidak ditemukan')
 
