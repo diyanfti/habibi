@@ -81,8 +81,8 @@ export default function Admin() {
   const [orders, setOrders] = useState([])
   const [users, setUsers] = useState([])
 
-  // ─── PRODUCT FORM (Angkringan) - SINGLE PRICE ───
-  const PROD_INIT = { name:'', price:'', unit:'', desc:'', inStock:true, imgBase64:'' }
+  // ─── PRODUCT FORM (Angkringan) - WITH PRICE & FLAVOR VARIANTS ───
+  const PROD_INIT = { name:'', variants:[], unit:'', desc:'', inStock:true, imgBase64:'' }
   const [prodForm, setProdForm] = useState(PROD_INIT)
   const [editProdId, setEditProdId] = useState(null)
   const [showProdForm, setShowProdForm] = useState(false)
@@ -178,7 +178,7 @@ export default function Admin() {
   }
 
   // ═════════════════════════════════════════════════════════════════
-  // PRODUCT (ANGKRINGAN) HANDLERS - SINGLE PRICE
+  // PRODUCT (ANGKRINGAN) HANDLERS - WITH PRICE & FLAVOR VARIANTS
   // ═════════════════════════════════════════════════════════════════
 
   const handleImgChange = e => {
@@ -192,8 +192,38 @@ export default function Admin() {
     reader.readAsDataURL(file)
   }
 
+  const addProductVariant = () => {
+    setProdForm(p => ({
+      ...p,
+      variants: [...(p.variants || []), { label: '', flavor: 'original', price: '' }]
+    }))
+  }
+
+  const updateProductVariant = (idx, key, val) => {
+    setProdForm(p => ({
+      ...p,
+      variants: p.variants.map((v, i) => i === idx ? { ...v, [key]: val } : v)
+    }))
+  }
+
+  const removeProductVariant = (idx) => {
+    setProdForm(p => ({
+      ...p,
+      variants: p.variants.filter((_, i) => i !== idx)
+    }))
+  }
+
   const saveProd = async () => {
-    if (!prodForm.name.trim() || !prodForm.price) { showToast('Isi nama & harga!','error'); return }
+    if (!prodForm.name.trim()) { showToast('Isi nama produk!','error'); return }
+    if (!prodForm.variants || prodForm.variants.length === 0) {
+      showToast('Tambahkan minimal 1 varian harga!','error')
+      return
+    }
+    if (prodForm.variants.some(v => !v.label || !v.price)) {
+      showToast('Semua varian harus punya label dan harga!','error')
+      return
+    }
+    
     setLoading(true)
     const method = editProdId ? 'PUT' : 'POST'
     const url = editProdId ? `/api/products/${editProdId}` : '/api/products'
@@ -213,7 +243,14 @@ export default function Admin() {
   }
 
   const editProd = p => {
-    setProdForm({ name:p.name, price:p.price, unit:p.unit, desc:p.desc, inStock:p.inStock, imgBase64:p.imgBase64||'' })
+    setProdForm({ 
+      name:p.name, 
+      variants:p.variants||[], 
+      unit:p.unit, 
+      desc:p.desc, 
+      inStock:p.inStock, 
+      imgBase64:p.imgBase64||'' 
+    })
     setImgPreview(p.imgBase64||null); setEditProdId(p.id); setShowProdForm(true)
     window.scrollTo({ top: 0, behavior:'smooth' })
   }
@@ -423,7 +460,6 @@ export default function Admin() {
 
       console.log(`📤 Mengubah status pesanan #${orderId} ke "${newStatus}"...`)
 
-      // Step 1: Update order status di database
       const updateRes = await fetch(`/api/orders/${orderId}`, {
         method: 'PUT',
         headers: authHeader(),
@@ -437,7 +473,6 @@ export default function Admin() {
 
       console.log(`✅ Status pesanan berhasil diubah ke "${newStatus}"`)
 
-      // Step 2: Jika status "selesai", kirim email notifikasi ke pelanggan
       if (newStatus === 'selesai') {
         console.log(`📧 Mengirim notifikasi email ke ${order.email}...`)
         await sendOrderReadyEmail(orderId, order)
@@ -445,7 +480,6 @@ export default function Admin() {
 
       showToast(`✅ Status pesanan diubah menjadi ${getStatus(newStatus).label}`)
       
-      // Refresh data
       await fetchAll()
     } catch (err) {
       console.error('❌ updateOrderStatus error:', err)
@@ -457,7 +491,6 @@ export default function Admin() {
 
   const sendOrderReadyEmail = async (orderId, order) => {
     try {
-      // Validasi data pelanggan
       if (!order.email) {
         showToast('Email pelanggan tidak tersedia. Email tidak dikirim.', 'warning')
         return
@@ -467,7 +500,6 @@ export default function Admin() {
 
       console.log(`📧 Preparing email to ${order.email}...`)
 
-      // Kirim request ke API send-notification
       const notificationRes = await fetch('/api/orders/send-notification', {
         method: 'POST',
         headers: authHeader(),
@@ -509,7 +541,6 @@ export default function Admin() {
   const prodHabis = products.filter(p => !p.inStock).length
   const sembakoHabis = sembakoProducts.filter(p => !p.inStock).length
 
-  // Filter orders berdasarkan status
   const filteredOrders = orderStatusFilter === 'all' 
     ? orders 
     : orders.filter(o => (o.status || 'pending') === orderStatusFilter)
@@ -605,7 +636,7 @@ export default function Admin() {
           </div>
         )}
 
-        {/* PRODUK ANGKRINGAN TAB - SINGLE PRICE */}
+        {/* PRODUK ANGKRINGAN TAB - WITH PRICE & FLAVOR VARIANTS */}
         {tab==='produk' && (
           <div>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1rem', flexWrap:'wrap', gap:8 }}>
@@ -619,16 +650,47 @@ export default function Admin() {
               <div style={{ background:'var(--bg-card)', border:'1px solid var(--border)', borderRadius:16, padding:'1.4rem', marginBottom:'1.5rem' }}>
                 <p style={{ fontWeight:700, fontSize:14, color:'var(--text-main)', marginBottom:'1rem' }}>{editProdId?'✏️ Edit Angkringan':'➕ Tambah Angkringan Baru'}</p>
                 <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))', gap:12 }}>
-                  {[{label:'Nama Produk',key:'name',placeholder:'Cireng',type:'text'},{label:'Harga (Rp)',key:'price',placeholder:'1000',type:'number'},{label:'Satuan',key:'unit',placeholder:'1 pcs',type:'text'}].map(({label,key,placeholder,type})=>(
-                    <div key={key}>
-                      <label style={{ fontSize:11, fontWeight:700, color:'var(--text-sub)', textTransform:'uppercase', display:'block', marginBottom:5 }}>{label}</label>
-                      <input style={inp} type={type} value={prodForm[key]} onChange={e=>setProdForm(p=>({...p,[key]:e.target.value}))} placeholder={placeholder} />
-                    </div>
-                  ))}
+                  <div style={{ gridColumn:'1/-1' }}>
+                    <label style={{ fontSize:11, fontWeight:700, color:'var(--text-sub)', textTransform:'uppercase', display:'block', marginBottom:5 }}>Nama Produk</label>
+                    <input style={inp} type="text" value={prodForm.name} onChange={e=>setProdForm(p=>({...p,name:e.target.value}))} placeholder="Cireng" />
+                  </div>
+                  <div>
+                    <label style={{ fontSize:11, fontWeight:700, color:'var(--text-sub)', textTransform:'uppercase', display:'block', marginBottom:5 }}>Satuan</label>
+                    <input style={inp} type="text" value={prodForm.unit} onChange={e=>setProdForm(p=>({...p,unit:e.target.value}))} placeholder="1 pcs, 1 porsi" />
+                  </div>
                   <div style={{ gridColumn:'1/-1' }}>
                     <label style={{ fontSize:11, fontWeight:700, color:'var(--text-sub)', textTransform:'uppercase', display:'block', marginBottom:5 }}>Deskripsi</label>
                     <input style={inp} type="text" value={prodForm.desc} onChange={e=>setProdForm(p=>({...p,desc:e.target.value}))} placeholder="Deskripsi singkat..." />
                   </div>
+
+                  {/* PRODUCT VARIANTS - PRICE & FLAVOR */}
+                  <div style={{ gridColumn:'1/-1' }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+                      <label style={{ fontSize:11, fontWeight:700, color:'var(--text-sub)', textTransform:'uppercase' }}>💰 Varian Harga & Rasa</label>
+                      <button onClick={addProductVariant} disabled={loading} style={{ padding:'6px 12px', background:'rgba(212,175,55,0.12)', border:'1px solid rgba(212,175,55,0.3)', color:'#D4AF37', borderRadius:8, fontWeight:700, fontSize:11, cursor:loading?'not-allowed':'pointer', fontFamily:'Poppins,sans-serif' }}>+ Tambah</button>
+                    </div>
+                    {prodForm.variants?.map((v, idx) => (
+                      <div key={idx} style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr auto', gap:8, marginBottom:8, alignItems:'flex-end' }}>
+                        <div>
+                          <label style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', display:'block', marginBottom:3 }}>Label (Harga)</label>
+                          <input style={inp} type="text" value={v.label} onChange={e=>updateProductVariant(idx,'label',e.target.value)} placeholder="Rp 1000" />
+                        </div>
+                        <div>
+                          <label style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', display:'block', marginBottom:3 }}>Rasa</label>
+                          <select style={{...inp}} value={v.flavor || 'original'} onChange={e=>updateProductVariant(idx,'flavor',e.target.value)}>
+                            <option value="original">Original</option>
+                            <option value="pedas">Pedas</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', display:'block', marginBottom:3 }}>Harga (Rp)</label>
+                          <input style={inp} type="number" value={v.price} onChange={e=>updateProductVariant(idx,'price',e.target.value)} placeholder="1000" />
+                        </div>
+                        <button onClick={()=>removeProductVariant(idx)} disabled={loading} style={{ padding:'6px 10px', background:'rgba(248,113,113,0.12)', border:'1px solid rgba(248,113,113,0.3)', color:'#f87171', borderRadius:8, fontSize:11, fontWeight:700, cursor:loading?'not-allowed':'pointer', fontFamily:'Poppins,sans-serif' }}>🗑️</button>
+                      </div>
+                    ))}
+                  </div>
+
                   <div style={{ gridColumn:'1/-1' }}>
                     <label style={{ fontSize:11, fontWeight:700, color:'var(--text-sub)', textTransform:'uppercase', display:'block', marginBottom:8 }}>📷 Foto</label>
                     <div style={{ display:'flex', gap:16, alignItems:'flex-start', flexWrap:'wrap' }}>
@@ -669,8 +731,9 @@ export default function Admin() {
                     </div>
                     <div style={{ padding:'0.9rem' }}>
                       <div style={{ fontSize:14, fontWeight:700, color:'var(--text-main)', marginBottom:2 }}>{p.name}</div>
-                      <div style={{ fontSize:11, color:'var(--text-muted)', marginBottom:6 }}>{p.unit}</div>
-                      <div style={{ fontSize:14, fontWeight:800, color:'#D4AF37', marginBottom:10 }}>Rp {Number(p.price).toLocaleString('id-ID')}</div>
+                      <div style={{ fontSize:10, color:'var(--text-muted)', marginBottom:6, maxHeight:80, overflowY:'auto' }}>
+                        {p.variants?.map((v,i) => <div key={i}>• {v.label} ({v.flavor}) - Rp {Number(v.price).toLocaleString('id-ID')}</div>)}
+                      </div>
                       <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
                         <button onClick={()=>toggleStok(p)} disabled={loading} style={{ flex:1, padding:'6px', borderRadius:8, border:'none', background:p.inStock?'rgba(139,111,71,0.12)':'rgba(212,175,55,0.12)', color:p.inStock?'#8B6F47':'#D4AF37', fontWeight:700, fontSize:11, cursor:loading?'not-allowed':'pointer', opacity:loading?0.6:1, fontFamily:'Poppins,sans-serif' }}>{p.inStock?'❌ Habiskan':'✅ Buka'}</button>
                         <button onClick={()=>editProd(p)} disabled={loading} style={{ padding:'6px 12px', background:'rgba(96,165,250,0.12)', border:'1px solid rgba(96,165,250,0.3)', color:'#60a5fa', borderRadius:8, fontSize:11, fontWeight:700, cursor:loading?'not-allowed':'pointer', opacity:loading?0.6:1, fontFamily:'Poppins,sans-serif' }}>✏️</button>
@@ -707,7 +770,6 @@ export default function Admin() {
                     <input style={inp} type="text" value={sembakoForm.desc} onChange={e=>setSembakoForm(p=>({...p,desc:e.target.value}))} placeholder="Deskripsi singkat..." />
                   </div>
 
-                  {/* SEMBAKO VARIANTS */}
                   <div style={{ gridColumn:'1/-1' }}>
                     <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
                       <label style={{ fontSize:11, fontWeight:700, color:'var(--text-sub)', textTransform:'uppercase' }}>📏 Varian Ukuran & Harga</label>
@@ -786,7 +848,7 @@ export default function Admin() {
           </div>
         )}
 
-        {/* PESANAN TAB - DENGAN EMAIL NOTIFICATION */}
+        {/* PESANAN TAB */}
         {tab==='pesanan' && (
           <div>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1.5rem', flexWrap:'wrap', gap:8 }}>
@@ -832,7 +894,6 @@ export default function Admin() {
                       </div>
                     </div>
 
-                    {/* Status & Items */}
                     <div style={{ background:'var(--bg-input)', borderRadius:12, padding:'0.8rem', marginBottom:'1rem' }}>
                       <div style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', marginBottom:6 }}>ITEM PESANAN</div>
                       {o.items?.map((item, idx) => (
@@ -842,7 +903,6 @@ export default function Admin() {
                       ))}
                     </div>
 
-                    {/* Status Update Buttons */}
                     <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
                       {['pending', 'proses', 'selesai', 'batal'].map(st => {
                         const config = statusConfig[st]

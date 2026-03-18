@@ -46,8 +46,8 @@ export default function Home() {
   const [products, setProducts]   = useState([])
   const [sembako, setSembako]     = useState([])
   const [loading, setLoading]     = useState(true)
-  const [qtys, setQtys]           = useState({})
-  const [selectedVariants, setSelectedVariants] = useState({})
+  const [selectedFlavors, setSelectedFlavors] = useState({})
+  const [productPrices, setProductPrices] = useState({})
   const [toast, setToast]         = useState({ msg: '', type: '' })
   const [showNotif, setShowNotif] = useState(false)
 
@@ -65,19 +65,16 @@ export default function Home() {
         
         if (Array.isArray(prodData)) {
           setProducts(prodData)
-          setQtys(Object.fromEntries(prodData.map(p => [p.id, 1])))
+          // Set default rasa = original untuk setiap produk
+          const defaultFlavors = {}
+          prodData.forEach(p => {
+            defaultFlavors[p.id] = 'original'
+          })
+          setSelectedFlavors(defaultFlavors)
         }
         
         if (Array.isArray(sembakoData)) {
           setSembako(sembakoData)
-          // Set default selected variant untuk setiap sembako
-          const defaultVariants = {}
-          sembakoData.forEach(s => {
-            if (s.variants && s.variants.length > 0) {
-              defaultVariants[s.id] = 0 // index varian pertama
-            }
-          })
-          setSelectedVariants(defaultVariants)
         }
       } catch (error) {
         console.error('Error fetching data:', error)
@@ -93,7 +90,6 @@ export default function Home() {
   useEffect(() => {
     const timer = setTimeout(() => {
       menuRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      // Tampilkan notifikasi jika datang dari halaman lain
       if (typeof window !== 'undefined' && window.location.hash === '' && !sessionStorage.getItem('menuNotifShown')) {
         setShowNotif(true)
         sessionStorage.setItem('menuNotifShown', 'true')
@@ -108,43 +104,61 @@ export default function Home() {
     setTimeout(() => setToast({ msg: '', type: '' }), 2500)
   }
 
-  const changeQty = (id, delta) =>
-    setQtys(prev => ({ ...prev, [id]: Math.max(1, (prev[id] || 1) + delta) }))
-
-  const handleAdd = (product) => {
+  // ── ANGKRINGAN: Tambah dengan harga custom & rasa yang dipilih ──────────
+  const handleAddProduct = (product) => {
     if (!product.inStock) {
       showToast(`❌ Maaf, ${product.name} sedang habis!`, 'error')
       return
     }
-    addToCart(product.name, product.price, product.unit, qtys[product.id] || 1)
-    setQtys(prev => ({ ...prev, [product.id]: 1 }))
-    showToast(`✅ ${product.name} ditambahkan ke keranjang!`, 'success')
+
+    const selectedRasa = selectedFlavors[product.id] || 'original'
+    const customPrice = parseInt(productPrices[product.id]) || 0
+
+    if (customPrice <= 0) {
+      showToast('❌ Masukkan harga yang valid (minimal Rp 1.000)!', 'error')
+      return
+    }
+
+    // Tambah dengan harga custom & rasa yang dipilih
+    addToCart(
+      `${product.name} (${selectedRasa === 'pedas' ? 'Pedas 🌶️' : 'Original 🍡'})`,
+      customPrice,
+      `Rp ${customPrice.toLocaleString('id-ID')}`,
+      1  // Selalu 1 per klik
+    )
+    
+    showToast(
+      `✅ ${product.name} (${selectedRasa === 'pedas' ? 'Pedas' : 'Original'}) Rp ${customPrice.toLocaleString('id-ID')} ditambahkan!`,
+      'success'
+    )
     setCartOpen(true)
+    
+    // Reset harga
+    setProductPrices(prev => ({ ...prev, [product.id]: '' }))
   }
 
-  const handleAddSembako = (sembakoItem) => {
+  // ── SEMBAKO: Tambah dengan ukuran dari variants ──────────────────────────
+  const handleAddSembako = (sembakoItem, variantIdx) => {
     if (!sembakoItem.inStock) {
       showToast(`❌ Maaf, ${sembakoItem.name} sedang habis!`, 'error')
       return
     }
 
-    const variantIdx = selectedVariants[sembakoItem.id] || 0
     const selectedVariant = sembakoItem.variants[variantIdx]
 
     if (!selectedVariant) {
-      showToast('❌ Pilih varian terlebih dahulu!', 'error')
+      showToast('❌ Pilih ukuran terlebih dahulu!', 'error')
       return
     }
 
-    const qty = qtys[sembakoItem.id] || 1
     addToCart(
       `${sembakoItem.name} (${selectedVariant.size})`,
       selectedVariant.price,
       selectedVariant.size,
-      qty
+      1
     )
-    setQtys(prev => ({ ...prev, [sembakoItem.id]: 1 }))
-    showToast(`✅ ${sembakoItem.name} ditambahkan ke keranjang!`, 'success')
+    
+    showToast(`✅ ${sembakoItem.name} (${selectedVariant.size}) ditambahkan!`, 'success')
     setCartOpen(true)
   }
 
@@ -213,19 +227,106 @@ export default function Home() {
                 <div className="product-info">
                   <div className="product-name">{p.name}</div>
                   <div className="product-desc">{p.desc}</div>
-                  <div className="product-price">
-                    Rp {Number(p.price).toLocaleString('id-ID')}
-                    <span className="product-unit"> / {p.unit}</span>
-                  </div>
-                  <div className="card-action">
-                    <div className="qty-control">
-                      <button onClick={() => changeQty(p.id, -1)} disabled={!p.inStock}>−</button>
-                      <span className="qty-value">{qtys[p.id] || 1}</span>
-                      <button onClick={() => changeQty(p.id,  1)} disabled={!p.inStock}>+</button>
+                  
+                  {/* TOMBOL PILIH RASA */}
+                  <div style={{ marginBottom: '0.8rem' }}>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '0.6rem', textTransform: 'uppercase' }}>
+                      🌶️ Pilih Rasa
+                    </label>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <button
+                        onClick={() => setSelectedFlavors(prev => ({ ...prev, [p.id]: 'original' }))}
+                        disabled={!p.inStock}
+                        style={{
+                          flex: 1,
+                          padding: '0.6rem',
+                          borderRadius: '8px',
+                          border: selectedFlavors[p.id] === 'original' ? '2px solid #D4AF37' : '1px solid var(--border-input)',
+                          background: selectedFlavors[p.id] === 'original' ? 'rgba(212,175,55,0.15)' : 'var(--bg-input)',
+                          color: selectedFlavors[p.id] === 'original' ? '#D4AF37' : 'var(--text-main)',
+                          fontWeight: 700,
+                          fontSize: '0.875rem',
+                          cursor: p.inStock ? 'pointer' : 'not-allowed',
+                          opacity: p.inStock ? 1 : 0.6,
+                          fontFamily: 'Poppins, sans-serif',
+                          transition: 'all 0.3s ease'
+                        }}
+                      >
+                        🍡 Original
+                      </button>
+                      <button
+                        onClick={() => setSelectedFlavors(prev => ({ ...prev, [p.id]: 'pedas' }))}
+                        disabled={!p.inStock}
+                        style={{
+                          flex: 1,
+                          padding: '0.6rem',
+                          borderRadius: '8px',
+                          border: selectedFlavors[p.id] === 'pedas' ? '2px solid #f87171' : '1px solid var(--border-input)',
+                          background: selectedFlavors[p.id] === 'pedas' ? 'rgba(248,113,113,0.15)' : 'var(--bg-input)',
+                          color: selectedFlavors[p.id] === 'pedas' ? '#f87171' : 'var(--text-main)',
+                          fontWeight: 700,
+                          fontSize: '0.875rem',
+                          cursor: p.inStock ? 'pointer' : 'not-allowed',
+                          opacity: p.inStock ? 1 : 0.6,
+                          fontFamily: 'Poppins, sans-serif',
+                          transition: 'all 0.3s ease'
+                        }}
+                      >
+                        🌶️ Pedas
+                      </button>
                     </div>
-                    <button className="btn-order" disabled={!p.inStock} onClick={() => handleAdd(p)}>
+                  </div>
+
+                  {/* INPUT HARGA CUSTOM */}
+                  <div style={{ marginBottom: '0.8rem' }}>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '0.4rem', textTransform: 'uppercase' }}>
+                      💰 Input Harga (Rp)
+                    </label>
+                    <input
+                      type="number"
+                      disabled={!p.inStock}
+                      value={productPrices[p.id] || ''}
+                      onChange={(e) => setProductPrices(prev => ({ ...prev, [p.id]: e.target.value }))}
+                      placeholder="Contoh: 1000, 5000, 10000"
+                      style={{
+                        width: '100%',
+                        padding: '0.6rem 0.8rem',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border-input)',
+                        background: 'var(--bg-input)',
+                        color: 'var(--text-main)',
+                        fontSize: '0.875rem',
+                        fontWeight: 600,
+                        cursor: p.inStock ? 'text' : 'not-allowed',
+                        opacity: p.inStock ? 1 : 0.6,
+                        fontFamily: 'Poppins, sans-serif'
+                      }}
+                    />
+                  </div>
+
+                  {/* DISPLAY HARGA */}
+                  {productPrices[p.id] && (
+                    <div className="product-price">
+                      Rp {Number(productPrices[p.id]).toLocaleString('id-ID')}
+                      <span className="product-unit"> / {selectedFlavors[p.id] === 'pedas' ? 'Pedas 🌶️' : 'Original 🍡'}</span>
+                    </div>
+                  )}
+
+                  <div className="card-action">
+                    <div style={{ flex: 1 }}></div>
+                    <button 
+                      className="btn-order" 
+                      disabled={!p.inStock} 
+                      onClick={() => handleAddProduct(p)}
+                      style={{ flex: 1 }}
+                    >
                       {p.inStock ? '+ Keranjang' : 'Habis'}
                     </button>
+                  </div>
+
+                  {/* INFO */}
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.5rem', textAlign: 'center', fontStyle: 'italic' }}>
+                    💡 Setiap klik = 1 bungkus dengan rasa & harga pilihan
                   </div>
                 </div>
               </div>
@@ -264,52 +365,40 @@ export default function Home() {
                   <div className="product-name">{s.name}</div>
                   <div className="product-desc">{s.desc}</div>
                   
-                  {/* Varian Selector */}
+                  {/* VARIAN UKURAN BUTTONS */}
                   <div style={{ marginBottom: '0.8rem' }}>
-                    <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '0.4rem', textTransform: 'uppercase' }}>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '0.6rem', textTransform: 'uppercase' }}>
                       📏 Pilih Ukuran
                     </label>
-                    <select
-                      disabled={!s.inStock}
-                      value={selectedVariants[s.id] || 0}
-                      onChange={(e) => setSelectedVariants(prev => ({ ...prev, [s.id]: Number(e.target.value) }))}
-                      style={{
-                        width: '100%',
-                        padding: '0.6rem 0.8rem',
-                        borderRadius: '8px',
-                        border: '1px solid var(--border-input)',
-                        background: 'var(--bg-input)',
-                        color: 'var(--text-main)',
-                        fontSize: '0.875rem',
-                        fontWeight: 600,
-                        cursor: s.inStock ? 'pointer' : 'not-allowed',
-                        opacity: s.inStock ? 1 : 0.6,
-                        fontFamily: 'Poppins, sans-serif'
-                      }}
-                    >
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                       {s.variants?.map((v, idx) => (
-                        <option key={idx} value={idx}>
+                        <button
+                          key={idx}
+                          onClick={() => handleAddSembako(s, idx)}
+                          disabled={!s.inStock}
+                          style={{
+                            padding: '0.6rem 0.8rem',
+                            borderRadius: '8px',
+                            border: '1px solid var(--border-input)',
+                            background: 'var(--bg-input)',
+                            color: 'var(--text-main)',
+                            fontWeight: 700,
+                            fontSize: '0.875rem',
+                            cursor: s.inStock ? 'pointer' : 'not-allowed',
+                            opacity: s.inStock ? 1 : 0.6,
+                            fontFamily: 'Poppins, sans-serif',
+                            transition: 'all 0.3s ease'
+                          }}
+                        >
                           {v.size} - Rp {Number(v.price).toLocaleString('id-ID')}
-                        </option>
+                        </button>
                       ))}
-                    </select>
-                  </div>
-
-                  {/* Harga dari varian terpilih */}
-                  <div className="product-price">
-                    Rp {Number(s.variants?.[selectedVariants[s.id] || 0]?.price || 0).toLocaleString('id-ID')}
-                    <span className="product-unit"> / {s.variants?.[selectedVariants[s.id] || 0]?.size || ''}</span>
-                  </div>
-
-                  <div className="card-action">
-                    <div className="qty-control">
-                      <button onClick={() => changeQty(s.id, -1)} disabled={!s.inStock}>−</button>
-                      <span className="qty-value">{qtys[s.id] || 1}</span>
-                      <button onClick={() => changeQty(s.id,  1)} disabled={!s.inStock}>+</button>
                     </div>
-                    <button className="btn-order" disabled={!s.inStock} onClick={() => handleAddSembako(s)}>
-                      {s.inStock ? '+ Keranjang' : 'Habis'}
-                    </button>
+                  </div>
+
+                  {/* INFO */}
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.5rem', textAlign: 'center', fontStyle: 'italic' }}>
+                    💡 Setiap klik = 1 item dengan ukuran pilihan
                   </div>
                 </div>
               </div>

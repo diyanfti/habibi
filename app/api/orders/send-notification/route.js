@@ -25,7 +25,7 @@ const STORE_CONFIG = {
   name: 'HA BIBI SNACK CORNER',
   phone: '628385293087', // Format Indonesia: 62 (code negara) + 8385293087 (nomor tanpa 0)
   phoneDisplay: '+62 838-5293-087', // Untuk display di email
-  email: 'habibisnackcorner@gmail.com',
+  email: 'info@habibi.com',
   whatsappMessage: 'Halo, saya ingin bertanya tentang pesanan saya', // Pesan default WA
   website: process.env.NEXT_PUBLIC_APP_URL || 'https://habibi.com'
 }
@@ -103,13 +103,19 @@ export async function POST(request) {
 
     // ─── FORMAT ITEM PESANAN ───
     const itemsHTML = order.items
-      .map(item => `
+      .map(item => {
+        const itemTotal = (item.subtotal || 0)
+        return `
         <tr style="border-bottom: 1px solid #e0e0e0;">
-          <td style="padding: 10px; text-align: left;">${item.name}</td>
-          <td style="padding: 10px; text-align: center;">${item.qty}</td>
-          <td style="padding: 10px; text-align: right;">Rp ${(item.subtotal || 0).toLocaleString('id-ID')}</td>
+          <td style="padding: 10px; text-align: left;">
+            <strong>${item.name}</strong><br>
+            <span style="font-size: 12px; color: #666;">Rp ${Number(item.price || 0).toLocaleString('id-ID')} × ${item.qty}</span>
+          </td>
+          <td style="padding: 10px; text-align: center; font-weight: 700; color: #333;">${item.qty}</td>
+          <td style="padding: 10px; text-align: right; font-weight: 700; color: #D4AF37;">Rp ${itemTotal.toLocaleString('id-ID')}</td>
         </tr>
-      `)
+      `
+      })
       .join('')
 
     // ─── HITUNG TOTAL ───
